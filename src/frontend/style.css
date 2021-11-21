@@ -1,0 +1,17 @@
+body {
+    font-family: -apple-system,BlinkMacSystemFont,segoe ui,Helvetica,Arial,sans-serif,apple color emoji,segoe ui emoji,segoe ui symbol;
+    padding: 1rem;
+    background-color: #fafafa;
+}
+
+/*
+ * Utility CSS
+ */
+
+.flex-grow-1 {
+    flex-grow: 1;
+}
+
+.flex-shrink-0 {
+    flex-shrink: 0;
+}

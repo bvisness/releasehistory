@@ -1,0 +1,249 @@
+{{ template "base.html" . }}
+
+{{ define "head" }}
+    <style>
+        .history {
+            display: flex;
+            height: 400vh; /* TODO: calculate dynamically from content */
+        }
+
+        .major-versions {
+            display: flex;
+        }
+
+        .major-version {
+            width: 3.6rem;
+        }
+
+        .column-header {
+            height: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: end;
+            align-items: center;
+            padding-bottom: 0.2rem;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: #333;
+        }
+
+        .vline {
+            position: absolute;
+            height: 100%;
+            left: calc(50% - 1px);
+            top: 0;
+            border-left: 2px solid #bbb;
+        }
+
+        .hline {
+            position: absolute;
+            width: 100%;
+            left: 0;
+            border-top: 1px solid #ccc;
+        }
+
+        .year-markers {
+            width: 2rem;
+        }
+
+        .year-marker {
+            position: absolute;
+            right: 0.3rem;
+            font-size: 0.6rem;
+            transform: translateY(-0.3rem);
+            color: #555;
+        }
+
+        .version-dot {
+            position: absolute;
+            left: 50%;
+            background-color: #333;
+            border-radius: 100%;
+            box-shadow: 0 0 3px 0 rgba(0, 0, 0, 0.2)
+        }
+
+        .version-dot.minor {
+            width: 0.8rem;
+            height: 0.8rem;
+            transform: translate(-0.4rem, -0.4rem);
+        }
+
+        .major-version:nth-child(5n+1) .version-dot {
+            background-color: #ee2541;
+        }
+
+        .major-version:nth-child(5n+2) .version-dot {
+            background-color: #297bc4;
+        }
+
+        .major-version:nth-child(5n+3) .version-dot {
+            background-color: #60a242;
+        }
+
+        .major-version:nth-child(5n+4) .version-dot {
+            background-color: #a450a4;
+        }
+
+        .major-version:nth-child(5n+5) .version-dot {
+            background-color: #ea9042;
+        }
+
+        .version-dot.patch {
+            width: 0.5rem;
+            height: 0.5rem;
+            transform: translate(-0.25rem, -0.25rem);
+        }
+    </style>
+{{ end }}
+
+{{ define "content" }}
+    <h2>{{ .P.Name }}</h2>
+
+    <div id="history" class="history">
+        <div>
+            <div class="column-header"></div>
+            <div id="year_markers" class="year-markers relative"></div>
+        </div>
+        <div id="major_versions" class="major-versions"></div>
+    </div>
+
+    <template id="major_version">
+        <div class="major-version flex flex-column">
+            <div class="column-header">
+                <span data-tmpl="version"></span>
+            </div>
+            <div class="relative flex-grow-1">
+                <div data-tmpl="years"></div>
+                <div class="vline"></div>
+                <div data-tmpl="versions"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="version">
+        <div data-tmpl="dot" class="version-dot"></div>
+    </template>
+
+    <template id="year_marker">
+        <div data-tmpl="marker" class="year-marker">
+            <div data-tmpl="year"></div>
+        </div>
+    </template>
+
+    <template id="year_line">
+        <div data-tmpl="line" class="hline"></div>
+    </template>
+
+    <script>
+        const verticalPaddingRem = 1;
+        const yearHeightRem = 4;
+
+        const ms2years = 1 / (1000 * 60 * 60 * 24 * 365); // this does not account for, like, leap years, but certainly no one will notice...
+
+        const p = JSON.parse({{ .PJSON }});
+        for (const v of p.versions) {
+            // replace unix timestamps with JS dates
+            v.time = new Date(v.time * 1000);
+        }
+
+        function init() {
+            if (p.versions.length === 0) {
+                return;
+            }
+
+            let years = [];
+            {
+                let minYear = 0, maxYear = 0;
+                for (const v of p.versions) {
+                    const year = v.time.getFullYear();
+                    if (minYear === 0 || year < minYear) {
+                        minYear = year;
+                    }
+                    if (maxYear === 0 || maxYear < year) {
+                        maxYear = year;
+                    }
+                }
+                years = new Array(maxYear - minYear + 1)
+                for (let i = 0; i < years.length; i++) {
+                    years[i] = minYear + i;
+                }
+            }
+            const minDate = new Date(years[0], 0) // January 1, whatever year
+
+            let majorVersions = [];
+            {
+                for (const v of p.versions) {
+                    if (!majorVersions.includes(v.major)) {
+                        majorVersions.push(v.major);
+                    }
+                }
+                majorVersions.sort((a, b) => a - b);
+            }
+
+            let yearMarkersContainer = document.querySelector('#year_markers');
+            let majorVersionsContainer = document.querySelector('#major_versions');
+
+            const majorVersionTemplate = makeTemplateCloner("major_version");
+            const versionTemplate = makeTemplateCloner("version");
+            const yearMarkerTemplate = makeTemplateCloner("year_marker");
+            const yearLineTemplate = makeTemplateCloner("year_line");
+            function draw() {
+                majorVersionsContainer = emptyElement(majorVersionsContainer);
+                yearMarkersContainer = emptyElement(yearMarkersContainer);
+
+                // Add year markers
+                for (let i = 0; i < years.length; i++) {
+                    const topRem = verticalPaddingRem + (i * yearHeightRem);
+                    
+                    const marker = yearMarkerTemplate();
+                    marker.marker.style.top = `${topRem}rem`;
+                    marker.year.innerText = years[i];
+                    yearMarkersContainer.appendChild(marker.root);
+                }
+
+                for (const mv of majorVersions) {
+                    const mvEl = majorVersionTemplate();
+                    mvEl.version.innerText = `${mv}.x`;
+
+                    // Add year lines
+                    for (let i = 0; i < years.length; i++) {
+                        const topRem = verticalPaddingRem + (i * yearHeightRem);
+                        
+                        const line = yearLineTemplate();
+                        line.line.style.top = `${topRem}rem`;
+                        mvEl.years.appendChild(line.root);
+                    }
+
+                    // Add versions
+                    let previousMinorVersion = -1;
+                    for (const v of p.versions) {
+                        if (v.major !== mv) {
+                            continue;
+                        }
+
+                        let isNewMinorVersion = false;
+                        if (v.minor !== previousMinorVersion) {
+                            isNewMinorVersion = true;
+                            previousMinorVersion = v.minor;
+                        }
+
+                        const msSinceStart = v.time.getTime() - minDate.getTime();
+                        const yearsSinceStart = msSinceStart * ms2years;
+                        const topRem = verticalPaddingRem + (yearsSinceStart * yearHeightRem);
+
+                        const vEl = versionTemplate();
+                        vEl.dot.style.top = `${topRem}rem`;
+                        vEl.dot.classList.toggle('minor', isNewMinorVersion);
+                        vEl.dot.classList.toggle('patch', !isNewMinorVersion);
+                        
+                        mvEl.versions.appendChild(vEl.root);
+                    }
+                    
+                    majorVersionsContainer.appendChild(mvEl.root);
+                }
+            }
+            draw();
+        }
+        init();
+    </script>
+{{ end }}
