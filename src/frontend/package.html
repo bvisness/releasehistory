@@ -235,6 +235,7 @@
                         vEl.dot.style.top = `${topRem}rem`;
                         vEl.dot.classList.toggle('minor', isNewMinorVersion);
                         vEl.dot.classList.toggle('patch', !isNewMinorVersion);
+                        vEl.dot.title = v.version;
                         
                         mvEl.versions.appendChild(vEl.root);
                     }
